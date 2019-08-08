@@ -9,7 +9,7 @@
 #+ search, echo=TRUE
 library(tidyverse)
 library(spotifyr)
-library(purrr)
+library(jsonlite)
 artist_ids <- search_spotify('Bob Dylan', type="artist") 
 
 pull(artist_ids, name)
@@ -44,8 +44,22 @@ nrow(albums)
 #' we'll employ 
 library(httr)
 
-get_playcount <- function(album_id, server_url='https://t4ils.dev:4433/api/beta/albumPlayCount') {
-  GET(server_url, query=list(albumid=album_id))
+get_playcount <- function(album_id, 
+                  server_url='https://t4ils.dev:4433/api/beta/albumPlayCount') {
+  count_response <- GET(server_url, query=list(albumid=album_id))
+  playcount <- fromJSON(content(count_response, as="text"))$data
+  playcount$track_id <- sub('spotify:track:', '', playcount$uri)
+    
+  playcount
 }
 
-playcount <- get_playcount(albums$id[1])
+playcounts <- map_dfr(albums$id[1:3], get_playcount)
+
+get_track_info <- function(track_id) {
+  c(get_tracks(track_id),
+    get_track_audio_analysis(track_id),
+    get_track_audio_features(track_id))
+}
+
+track_info <- map_dfr(playcounts$track_id, get_track_info)
+
